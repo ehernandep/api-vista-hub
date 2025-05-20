@@ -1,193 +1,146 @@
-
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
-import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { 
-  Select, 
-  SelectContent, 
-  SelectItem, 
-  SelectTrigger, 
-  SelectValue 
-} from "@/components/ui/select";
-import { 
-  Form, 
-  FormControl, 
-  FormDescription, 
-  FormField, 
-  FormItem, 
-  FormLabel, 
-  FormMessage 
-} from "@/components/ui/form";
-import { Badge } from "@/components/ui/badge";
-import { Loader2, Plus, X } from "lucide-react";
-import { z } from "zod";
-import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import * as z from "zod";
+import { useNavigate } from "react-router-dom";
+import { X, PlusCircle } from "lucide-react";
 import { toast } from "@/components/ui/use-toast";
-import { fetchApiCategories, createApi, ApiCategory } from "@/services/apiService";
 
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { createApi, fetchApiCategories, ApiCategory } from "@/services/apiService";
+
+// Validation schema for the form
 const formSchema = z.object({
-  name: z.string().min(1, "El nombre es obligatorio"),
-  description: z.string().min(10, "La descripción debe tener al menos 10 caracteres"),
-  base_url: z.string().url("Ingresa una URL válida"),
-  version: z.string().min(1, "La versión es obligatoria"),
-  documentation_url: z.string().url("Ingresa una URL válida").optional().or(z.literal("")),
-  owner: z.string().min(1, "El propietario es obligatorio"),
-  category_id: z.string().min(1, "La categoría es obligatoria"),
-  auth_type: z.enum(["apiKey", "oauth2", "none"]),
-  auth_description: z.string().optional(),
+  name: z.string().min(3, "Name must be at least 3 characters"),
+  description: z.string().min(10, "Description must be at least 10 characters"),
+  version: z.string().default("v1"),
+  owner: z.string().min(3, "Owner name is required"),
+  base_url: z.string().url("Must be a valid URL"),
+  documentation_url: z.string().url("Must be a valid URL").optional().or(z.literal("")),
+  category_id: z.string().min(1, "Category is required"),
+  auth_type: z.enum(["apiKey", "oauth2", "none"]).default("none"),
+  auth_description: z.string().optional().or(z.literal("")),
 });
 
-// Crear un esquema para los endpoints
-const endpointSchema = z.object({
-  path: z.string().min(1, "El path es obligatorio"),
-  method: z.enum(["GET", "POST", "PUT", "DELETE", "PATCH"]),
-  description: z.string().min(5, "La descripción debe tener al menos 5 caracteres"),
-});
+type FormValues = z.infer<typeof formSchema>;
 
 const AddApi = () => {
   const navigate = useNavigate();
-  const [loading, setLoading] = useState(false);
   const [categories, setCategories] = useState<ApiCategory[]>([]);
-  const [loadingCategories, setLoadingCategories] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [tags, setTags] = useState<string[]>([]);
-  const [newTag, setNewTag] = useState("");
-  const [endpoints, setEndpoints] = useState<{
-    path: string;
-    method: string;
-    description: string;
-  }[]>([]);
-  const [newEndpoint, setNewEndpoint] = useState({
-    path: "",
-    method: "GET",
-    description: "",
-  });
+  const [tagInput, setTagInput] = useState("");
+  
+  // Endpoints state
+  const [endpoints, setEndpoints] = useState<{path: string; method: string; description: string}[]>([
+    { path: "", method: "GET", description: "" }
+  ]);
 
-  // Form definition
-  const form = useForm<z.infer<typeof formSchema>>({
+  const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       name: "",
       description: "",
-      base_url: "",
-      version: "v1.0",
-      documentation_url: "",
+      version: "v1",
       owner: "",
+      base_url: "",
+      documentation_url: "",
       category_id: "",
       auth_type: "none",
       auth_description: "",
     },
   });
-
-  // Load categories on component mount
+  
+  // Load categories when component mounts
   useEffect(() => {
     const loadCategories = async () => {
-      try {
-        const data = await fetchApiCategories();
-        setCategories(data);
-      } catch (error) {
-        console.error("Error loading categories:", error);
-        toast({
-          title: "Error",
-          description: "No se pudieron cargar las categorías",
-          variant: "destructive",
-        });
-      } finally {
-        setLoadingCategories(false);
-      }
+      const data = await fetchApiCategories();
+      setCategories(data);
     };
-
     loadCategories();
   }, []);
 
-  // Tag handlers
-  const addTag = () => {
-    if (newTag.trim() && !tags.includes(newTag.trim())) {
-      setTags([...tags, newTag.trim()]);
-      setNewTag("");
+  const handleAddTag = () => {
+    if (tagInput.trim() && !tags.includes(tagInput.trim())) {
+      setTags([...tags, tagInput.trim()]);
+      setTagInput("");
     }
   };
 
-  const removeTag = (tagToRemove: string) => {
-    setTags(tags.filter((tag) => tag !== tagToRemove));
+  const handleRemoveTag = (tagToRemove: string) => {
+    setTags(tags.filter(tag => tag !== tagToRemove));
   };
 
-  // Endpoint handlers
-  const validateEndpoint = () => {
-    try {
-      endpointSchema.parse(newEndpoint);
-      return true;
-    } catch (error) {
-      return false;
-    }
+  const handleAddEndpoint = () => {
+    setEndpoints([...endpoints, { path: "", method: "GET", description: "" }]);
   };
 
-  const addEndpoint = () => {
-    if (validateEndpoint()) {
-      setEndpoints([...endpoints, { ...newEndpoint }]);
-      setNewEndpoint({
-        path: "",
-        method: "GET",
-        description: "",
-      });
-    } else {
-      toast({
-        title: "Endpoint inválido",
-        description: "Asegúrate de completar todos los campos del endpoint correctamente",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const removeEndpoint = (index: number) => {
+  const handleRemoveEndpoint = (index: number) => {
     setEndpoints(endpoints.filter((_, i) => i !== index));
   };
 
-  // Form submission handler
-  const onSubmit = async (values: z.infer<typeof formSchema>) => {
+  const handleEndpointChange = (index: number, field: string, value: string) => {
+    const updatedEndpoints = [...endpoints];
+    updatedEndpoints[index] = { ...updatedEndpoints[index], [field]: value };
+    setEndpoints(updatedEndpoints);
+  };
+
+  const onSubmit = async (values: FormValues) => {
     setLoading(true);
-    
     try {
-      // Prepare API data
-      const apiData = {
+      // Validate endpoints
+      const validEndpoints = endpoints.filter(endpoint => 
+        endpoint.path.trim() !== "" && endpoint.description.trim() !== ""
+      );
+      
+      if (validEndpoints.length === 0) {
+        toast({
+          title: "Error",
+          description: "At least one valid endpoint is required",
+          variant: "destructive",
+        });
+        setLoading(false);
+        return;
+      }
+      
+      // Create API object with all required fields
+      const newApi = {
         ...values,
-        tags,
-        endpoints: endpoints.map(endpoint => ({
-          path: endpoint.path,
-          method: endpoint.method,
-          description: endpoint.description,
-        })),
+        // Ensure all required fields are present
+        name: values.name,
+        description: values.description,
+        version: values.version || "v1",
+        owner: values.owner,
+        base_url: values.base_url,
+        documentation_url: values.documentation_url || null,
+        category_id: values.category_id,
+        tags: tags,
+        auth_type: values.auth_type as 'apiKey' | 'oauth2' | 'none',
+        auth_description: values.auth_description || null,
+        endpoints: validEndpoints,
       };
       
-      // Create API in Supabase
-      const createdApi = await createApi(apiData);
+      const result = await createApi(newApi);
       
-      if (createdApi) {
+      if (result) {
         toast({
-          title: "API creada",
-          description: "La API ha sido creada correctamente",
+          title: "Success",
+          description: "API created successfully",
         });
-        
-        // Redirect to the API view page
-        navigate(`/view/${createdApi.id}`);
+        navigate(`/view/${result.id}`);
       } else {
-        throw new Error("No se pudo crear la API");
+        throw new Error("Failed to create API");
       }
     } catch (error) {
       console.error("Error creating API:", error);
       toast({
         title: "Error",
-        description: "Hubo un problema al crear la API",
+        description: "Failed to create API",
         variant: "destructive",
       });
     } finally {
@@ -196,38 +149,66 @@ const AddApi = () => {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="container max-w-3xl mx-auto py-6 space-y-6">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">Añadir Nueva API</h1>
+        <h1 className="text-2xl font-bold tracking-tight">Add New API</h1>
         <p className="text-muted-foreground">
-          Registra una nueva API en el marketplace para compartir con otros
-          desarrolladores.
+          Fill out the form to add a new API to the catalog.
         </p>
       </div>
 
       <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle>Información Básica</CardTitle>
+              <CardTitle>Basic Information</CardTitle>
               <CardDescription>
-                Introduce la información principal de la API
+                General information about the API.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
+                name="name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>API Name</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Payment Processing API" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="description"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Description</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        placeholder="A comprehensive API for handling payment processing..."
+                        className="min-h-[100px]"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <div className="grid grid-cols-2 gap-4">
                 <FormField
                   control={form.control}
-                  name="name"
+                  name="version"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Nombre</FormLabel>
+                      <FormLabel>Version</FormLabel>
                       <FormControl>
-                        <Input placeholder="Payment Gateway API" {...field} />
+                        <Input placeholder="v1" {...field} />
                       </FormControl>
-                      <FormDescription>
-                        Un nombre descriptivo para la API
-                      </FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -235,16 +216,13 @@ const AddApi = () => {
 
                 <FormField
                   control={form.control}
-                  name="version"
+                  name="owner"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Versión</FormLabel>
+                      <FormLabel>API Owner</FormLabel>
                       <FormControl>
-                        <Input placeholder="v1.0" {...field} />
+                        <Input placeholder="Organization or developer" {...field} />
                       </FormControl>
-                      <FormDescription>
-                        Versión actual de la API
-                      </FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -253,216 +231,221 @@ const AddApi = () => {
 
               <FormField
                 control={form.control}
-                name="description"
+                name="category_id"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Descripción</FormLabel>
-                    <FormControl>
-                      <Textarea
-                        placeholder="API para procesamiento de pagos con múltiples métodos"
-                        className="min-h-[100px]"
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormDescription>
-                      Describe brevemente lo que hace la API
-                    </FormDescription>
+                    <FormLabel>Category</FormLabel>
+                    <Select
+                      onValueChange={field.onChange}
+                      defaultValue={field.value}
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select a category" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {categories.map((category) => (
+                          <SelectItem key={category.id} value={category.id}>
+                            {category.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                     <FormMessage />
                   </FormItem>
                 )}
               />
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <FormField
-                  control={form.control}
-                  name="owner"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Propietario</FormLabel>
-                      <FormControl>
-                        <Input placeholder="FinTech Solutions" {...field} />
-                      </FormControl>
-                      <FormDescription>
-                        Empresa o entidad dueña de la API
-                      </FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="category_id"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Categoría</FormLabel>
-                      <Select
-                        onValueChange={field.onChange}
-                        defaultValue={field.value}
-                      >
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Selecciona una categoría" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {loadingCategories ? (
-                            <div className="flex items-center justify-center p-2">
-                              <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                              Cargando...
-                            </div>
-                          ) : categories.length === 0 ? (
-                            <div className="p-2 text-center text-muted-foreground">
-                              No hay categorías disponibles
-                            </div>
-                          ) : (
-                            categories.map((category) => (
-                              <SelectItem key={category.id} value={category.id}>
-                                <div className="flex items-center gap-2">
-                                  <div
-                                    className="w-3 h-3 rounded-full"
-                                    style={{ backgroundColor: category.color }}
-                                  ></div>
-                                  {category.name}
-                                </div>
-                              </SelectItem>
-                            ))
-                          )}
-                        </SelectContent>
-                      </Select>
-                      <FormDescription>
-                        Clasifica la API en una categoría
-                      </FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label>Etiquetas</Label>
-                <div className="flex flex-wrap gap-2 mb-2">
+              <div>
+                <FormLabel>Tags</FormLabel>
+                <div className="flex flex-wrap gap-2 mt-2">
                   {tags.map((tag) => (
-                    <Badge
+                    <div
                       key={tag}
-                      variant="outline"
-                      className="flex items-center gap-1"
+                      className="bg-secondary text-secondary-foreground px-3 py-1 rounded-full flex items-center gap-1"
                     >
-                      {tag}
+                      <span>{tag}</span>
                       <button
                         type="button"
-                        onClick={() => removeTag(tag)}
-                        className="text-muted-foreground hover:text-foreground"
+                        onClick={() => handleRemoveTag(tag)}
+                        className="text-secondary-foreground/70 hover:text-secondary-foreground"
                       >
                         <X className="h-3 w-3" />
                       </button>
-                    </Badge>
+                    </div>
                   ))}
-                  {tags.length === 0 && (
-                    <span className="text-sm text-muted-foreground">
-                      No hay etiquetas añadidas
-                    </span>
-                  )}
                 </div>
-                <div className="flex gap-2">
+                <div className="flex mt-2">
                   <Input
-                    placeholder="Nueva etiqueta"
-                    value={newTag}
-                    onChange={(e) => setNewTag(e.target.value)}
+                    value={tagInput}
+                    onChange={(e) => setTagInput(e.target.value)}
+                    placeholder="Add a tag"
                     onKeyDown={(e) => {
                       if (e.key === "Enter") {
                         e.preventDefault();
-                        addTag();
+                        handleAddTag();
                       }
                     }}
                   />
                   <Button
                     type="button"
-                    variant="outline"
-                    size="icon"
-                    onClick={addTag}
+                    variant="secondary"
+                    className="ml-2"
+                    onClick={handleAddTag}
                   >
-                    <Plus className="h-4 w-4" />
+                    Add
                   </Button>
                 </div>
-                <p className="text-sm text-muted-foreground">
-                  Añade etiquetas para facilitar la búsqueda de la API
-                </p>
+                <FormDescription>
+                  Press Enter or click Add to add a tag
+                </FormDescription>
               </div>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader>
-              <CardTitle>URLs y Endpoints</CardTitle>
+              <CardTitle>API URLs</CardTitle>
               <CardDescription>
-                Configura las URLs y endpoints de la API
+                URLs for accessing the API and documentation.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <FormField
-                  control={form.control}
-                  name="base_url"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>URL Base</FormLabel>
-                      <FormControl>
-                        <Input
-                          placeholder="https://api.example.com"
-                          {...field}
-                        />
-                      </FormControl>
-                      <FormDescription>
-                        URL base para las llamadas a la API
-                      </FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+              <FormField
+                control={form.control}
+                name="base_url"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Base URL</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder="https://api.example.com/v1"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
-                <FormField
-                  control={form.control}
-                  name="documentation_url"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>URL de Documentación</FormLabel>
+              <FormField
+                control={form.control}
+                name="documentation_url"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Documentation URL (Optional)</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder="https://docs.example.com"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Authentication</CardTitle>
+              <CardDescription>
+                API authentication details.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <FormField
+                control={form.control}
+                name="auth_type"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Authentication Type</FormLabel>
+                    <Select
+                      onValueChange={field.onChange}
+                      defaultValue={field.value}
+                    >
                       <FormControl>
-                        <Input
-                          placeholder="https://docs.example.com"
-                          {...field}
-                        />
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select authentication type" />
+                        </SelectTrigger>
                       </FormControl>
-                      <FormDescription>
-                        URL a la documentación completa (opcional)
-                      </FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                      <SelectContent>
+                        <SelectItem value="none">None</SelectItem>
+                        <SelectItem value="apiKey">API Key</SelectItem>
+                        <SelectItem value="oauth2">OAuth 2.0</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="auth_description"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Authentication Description (Optional)</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        placeholder="Include the API key in the 'Authorization' header..."
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle>Endpoints</CardTitle>
+                <CardDescription>
+                  Define the available endpoints for this API.
+                </CardDescription>
               </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleAddEndpoint}
+              >
+                <PlusCircle className="h-4 w-4 mr-2" />
+                Add Endpoint
+              </Button>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {endpoints.map((endpoint, index) => (
+                <div
+                  key={index}
+                  className="border rounded-md p-4 space-y-4 relative"
+                >
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="absolute top-2 right-2"
+                    onClick={() => handleRemoveEndpoint(index)}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
 
-              <div className="space-y-4 border-t pt-4 mt-4">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-lg font-medium">Endpoints</h3>
-                  <Badge variant="outline">
-                    {endpoints.length} endpoint
-                    {endpoints.length !== 1 ? "s" : ""}
-                  </Badge>
-                </div>
-
-                <div className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                    <div className="md:col-span-1">
-                      <Label htmlFor="endpoint-method">Método</Label>
+                  <div className="grid grid-cols-4 gap-4">
+                    <div className="col-span-1">
+                      <FormLabel>Method</FormLabel>
                       <Select
-                        value={newEndpoint.method}
+                        value={endpoint.method}
                         onValueChange={(value) =>
-                          setNewEndpoint({ ...newEndpoint, method: value })
+                          handleEndpointChange(index, "method", value)
                         }
                       >
-                        <SelectTrigger id="endpoint-method">
-                          <SelectValue placeholder="GET" />
+                        <SelectTrigger>
+                          <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="GET">GET</SelectItem>
@@ -473,190 +456,55 @@ const AddApi = () => {
                         </SelectContent>
                       </Select>
                     </div>
-                    <div className="md:col-span-1">
-                      <Label htmlFor="endpoint-path">Path</Label>
+                    <div className="col-span-3">
+                      <FormLabel>Path</FormLabel>
                       <Input
-                        id="endpoint-path"
-                        placeholder="/v1/resources"
-                        value={newEndpoint.path}
+                        value={endpoint.path}
                         onChange={(e) =>
-                          setNewEndpoint({
-                            ...newEndpoint,
-                            path: e.target.value,
-                          })
+                          handleEndpointChange(index, "path", e.target.value)
                         }
+                        placeholder="/users/{id}"
                       />
-                    </div>
-                    <div className="md:col-span-2">
-                      <Label htmlFor="endpoint-description">
-                        Descripción
-                      </Label>
-                      <div className="flex gap-2">
-                        <Input
-                          id="endpoint-description"
-                          placeholder="Describe lo que hace este endpoint"
-                          value={newEndpoint.description}
-                          onChange={(e) =>
-                            setNewEndpoint({
-                              ...newEndpoint,
-                              description: e.target.value,
-                            })
-                          }
-                        />
-                        <Button
-                          type="button"
-                          onClick={addEndpoint}
-                          variant="outline"
-                          size="icon"
-                        >
-                          <Plus className="h-4 w-4" />
-                        </Button>
-                      </div>
                     </div>
                   </div>
 
-                  {endpoints.length > 0 && (
-                    <div className="border rounded-md overflow-hidden">
-                      <table className="w-full text-sm">
-                        <thead className="bg-muted">
-                          <tr>
-                            <th className="px-4 py-2 text-left">Método</th>
-                            <th className="px-4 py-2 text-left">Path</th>
-                            <th className="px-4 py-2 text-left">
-                              Descripción
-                            </th>
-                            <th className="px-4 py-2 w-10"></th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {endpoints.map((endpoint, index) => (
-                            <tr
-                              key={index}
-                              className="border-t"
-                            >
-                              <td className="px-4 py-2">
-                                <Badge
-                                  variant="outline"
-                                  className={
-                                    endpoint.method === "GET"
-                                      ? "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400"
-                                      : endpoint.method === "POST"
-                                      ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400"
-                                      : endpoint.method === "PUT"
-                                      ? "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400"
-                                      : endpoint.method === "DELETE"
-                                      ? "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400"
-                                      : "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400"
-                                  }
-                                >
-                                  {endpoint.method}
-                                </Badge>
-                              </td>
-                              <td className="px-4 py-2 font-mono text-xs">
-                                {endpoint.path}
-                              </td>
-                              <td className="px-4 py-2 text-muted-foreground">
-                                {endpoint.description}
-                              </td>
-                              <td className="px-4 py-2">
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-7 w-7"
-                                  onClick={() => removeEndpoint(index)}
-                                >
-                                  <X className="h-4 w-4" />
-                                </Button>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
+                  <div>
+                    <FormLabel>Description</FormLabel>
+                    <Textarea
+                      value={endpoint.description}
+                      onChange={(e) =>
+                        handleEndpointChange(
+                          index,
+                          "description",
+                          e.target.value
+                        )
+                      }
+                      placeholder="Get user details by ID"
+                    />
+                  </div>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Autenticación</CardTitle>
-              <CardDescription>
-                Configura el método de autenticación de la API
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <FormField
-                control={form.control}
-                name="auth_type"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Tipo de Autenticación</FormLabel>
-                    <Select
-                      onValueChange={field.onChange}
-                      defaultValue={field.value}
-                    >
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Selecciona el tipo de autenticación" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="none">No requiere</SelectItem>
-                        <SelectItem value="apiKey">API Key</SelectItem>
-                        <SelectItem value="oauth2">OAuth 2.0</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <FormDescription>
-                      Método de autenticación requerido para usar la API
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              {form.watch("auth_type") !== "none" && (
-                <FormField
-                  control={form.control}
-                  name="auth_description"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Descripción de la Autenticación</FormLabel>
-                      <FormControl>
-                        <Textarea
-                          placeholder="Explica cómo obtener y utilizar las credenciales de autenticación"
-                          className="min-h-[100px]"
-                          {...field}
-                        />
-                      </FormControl>
-                      <FormDescription>
-                        Proporciona información adicional sobre el proceso de
-                        autenticación
-                      </FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+              ))}
+              {endpoints.length === 0 && (
+                <div className="text-center py-6 text-muted-foreground">
+                  No endpoints defined. Click &quot;Add Endpoint&quot; to define an API
+                  endpoint.
+                </div>
               )}
             </CardContent>
           </Card>
 
-          <div className="flex justify-end gap-4">
+          <CardFooter className="flex justify-between border rounded-lg p-6">
             <Button
               type="button"
               variant="outline"
               onClick={() => navigate(-1)}
-              disabled={loading}
             >
-              Cancelar
+              Cancel
             </Button>
             <Button type="submit" disabled={loading}>
-              {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Publicar API
+              {loading ? "Creating..." : "Create API"}
             </Button>
-          </div>
+          </CardFooter>
         </form>
       </Form>
     </div>

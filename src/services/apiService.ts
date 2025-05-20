@@ -122,17 +122,18 @@ export const fetchApis = async (): Promise<Api[]> => {
         if (!endpointsMap[endpoint.api_id]) {
           endpointsMap[endpoint.api_id] = [];
         }
-        endpointsMap[endpoint.api_id].push(endpoint);
+        endpointsMap[endpoint.api_id].push(endpoint as ApiEndpoint);
       });
     }
     
-    // Combine all data
+    // Combine all data and ensure correct types
     const apis = apisData.map(api => ({
       ...api,
+      auth_type: (api.auth_type as 'apiKey' | 'oauth2' | 'none') || 'none',
       category: categoriesMap[api.category_id],
       stats: statsMap[api.id],
       endpoints: endpointsMap[api.id] || []
-    }));
+    })) as Api[];
     
     return apis;
   } catch (error) {
@@ -184,13 +185,14 @@ export const fetchApiById = async (id: string): Promise<Api | null> => {
       .select('*')
       .eq('api_id', api.id);
     
-    // Combine all data
+    // Combine all data and ensure correct types
     return {
       ...api,
+      auth_type: (api.auth_type as 'apiKey' | 'oauth2' | 'none') || 'none',
       category,
       stats,
       endpoints: endpoints || []
-    };
+    } as Api;
   } catch (error) {
     console.error(`Error fetching API with ID ${id}:`, error);
     toast({
