@@ -1,7 +1,6 @@
-
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { api, apiCategories } from "@/data/mockData";
+import { apiCategories } from "@/data/mockData";
 import {
   Card,
   CardContent,
