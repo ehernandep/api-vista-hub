@@ -1,8 +1,7 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { dashboardMetrics, apis } from "@/data/mockData";
-import { ArrowUp, Users, Database, BarChart3, ArrowRight } from "lucide-react";
+import { ArrowUp, Users, Database, BarChart3, ArrowRight, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Link } from "react-router-dom";
@@ -12,13 +11,39 @@ import {
   XAxis,
   YAxis,
   CartesianGrid,
-  Tooltip,
+  Tooltip as RechartsTooltip,
   ResponsiveContainer,
 } from "recharts";
 import { Badge } from "@/components/ui/badge";
+import { fetchApis, getDashboardMetrics } from "@/services/apiService";
+import { Api } from "@/services/apiService";
 
 const Dashboard = () => {
   const [timeRange, setTimeRange] = useState<"week" | "month" | "year">("month");
+  const [loading, setLoading] = useState(true);
+  const [apis, setApis] = useState<Api[]>([]);
+  const [metrics, setMetrics] = useState<any>(null);
+
+  // Fetch data on mount
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        setLoading(true);
+        const [apisData, metricsData] = await Promise.all([
+          fetchApis(),
+          getDashboardMetrics(),
+        ]);
+        setApis(apisData);
+        setMetrics(metricsData);
+      } catch (error) {
+        console.error("Error loading dashboard data:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadData();
+  }, []);
 
   // Formato para números grandes
   const formatNumber = (num: number) => {
@@ -29,6 +54,18 @@ const Dashboard = () => {
     }
     return num.toString();
   };
+
+  // Show loading state
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-[60vh]">
+        <div className="text-center">
+          <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary mb-4" />
+          <p className="text-muted-foreground">Cargando datos del dashboard...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -74,14 +111,14 @@ const Dashboard = () => {
           </CardHeader>
           <CardContent>
             <div className="flex items-center justify-between">
-              <div className="text-2xl font-bold">{dashboardMetrics.totalApis}</div>
+              <div className="text-2xl font-bold">{metrics?.totalApis || 0}</div>
               <div className="flex items-center gap-1 text-sm text-green-600 bg-green-100 dark:bg-green-900/30 dark:text-green-400 px-2 py-0.5 rounded-full">
                 <ArrowUp className="h-3 w-3" />
-                <span>+{dashboardMetrics.newApisLastMonth}</span>
+                <span>+{metrics?.newApisLastMonth || 0}</span>
               </div>
             </div>
             <p className="text-xs text-muted-foreground mt-1">
-              {dashboardMetrics.newApisLastMonth} nuevas APIs este mes
+              {metrics?.newApisLastMonth || 0} nuevas APIs este mes
             </p>
           </CardContent>
         </Card>
@@ -94,7 +131,7 @@ const Dashboard = () => {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {formatNumber(dashboardMetrics.totalApiCalls)}
+              {formatNumber(metrics?.totalApiCalls || 0)}
             </div>
             <p className="text-xs text-muted-foreground mt-1">
               +15% desde el mes anterior
@@ -111,7 +148,7 @@ const Dashboard = () => {
           <CardContent>
             <div className="flex items-center justify-between">
               <div className="text-2xl font-bold">
-                {dashboardMetrics.activeUsers}
+                {metrics?.activeUsers || 0}
               </div>
               <div className="flex items-center">
                 <Users className="h-4 w-4 text-muted-foreground" />
@@ -150,14 +187,14 @@ const Dashboard = () => {
           <CardContent>
             <div className="h-[300px]">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={dashboardMetrics.apiCallsOverTime}>
+                <BarChart data={metrics?.apiCallsOverTime || []}>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="month" />
                   <YAxis
                     tickFormatter={(value) => formatNumber(value)}
                     width={40}
                   />
-                  <Tooltip
+                  <RechartsTooltip
                     formatter={(value) => [
                       formatNumber(value as number),
                       "Llamadas",
@@ -183,7 +220,7 @@ const Dashboard = () => {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {dashboardMetrics.popularCategories.map((category) => (
+              {metrics?.popularCategories?.map((category: any) => (
                 <div key={category.name} className="space-y-1">
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-medium">{category.name}</span>
@@ -194,6 +231,11 @@ const Dashboard = () => {
                   <Progress value={category.percentage} className="h-2" />
                 </div>
               ))}
+              {(!metrics?.popularCategories || metrics.popularCategories.length === 0) && (
+                <div className="text-center py-8 text-muted-foreground">
+                  No hay datos de categorías disponibles
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -219,12 +261,14 @@ const Dashboard = () => {
                   <CardTitle className="text-lg font-semibold">
                     {api.name}
                   </CardTitle>
-                  <Badge
-                    style={{ backgroundColor: api.category.color }}
-                    className="text-white"
-                  >
-                    {api.category.name}
-                  </Badge>
+                  {api.category && (
+                    <Badge
+                      style={{ backgroundColor: api.category.color }}
+                      className="text-white"
+                    >
+                      {api.category.name}
+                    </Badge>
+                  )}
                 </div>
               </CardHeader>
               <CardContent className="space-y-2">
@@ -243,11 +287,11 @@ const Dashboard = () => {
                 <div className="pt-2 flex items-center justify-between text-xs text-muted-foreground">
                   <div className="flex items-center gap-1">
                     <Database className="h-3 w-3" />
-                    <span>{formatNumber(api.stats.totalCalls)} llamadas</span>
+                    <span>{formatNumber(api.stats?.total_calls || 0)} llamadas</span>
                   </div>
                   <div>
                     <span className="font-medium text-green-600">
-                      {api.stats.uptime}% uptime
+                      {api.stats?.uptime || 99.9}% uptime
                     </span>
                   </div>
                 </div>
@@ -258,6 +302,18 @@ const Dashboard = () => {
               </CardContent>
             </Card>
           ))}
+          {apis.length === 0 && (
+            <div className="col-span-3 text-center py-12 border border-dashed rounded-lg">
+              <Database className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+              <h3 className="text-lg font-medium">No hay APIs disponibles</h3>
+              <p className="text-muted-foreground mb-4">
+                Crea tu primera API para verla aquí
+              </p>
+              <Button asChild>
+                <Link to="/add">Añadir API</Link>
+              </Button>
+            </div>
+          )}
         </div>
       </div>
     </div>

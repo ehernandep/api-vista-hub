@@ -9,7 +9,156 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
-      [_ in never]: never
+      api_categories: {
+        Row: {
+          color: string
+          created_at: string
+          id: string
+          name: string
+        }
+        Insert: {
+          color?: string
+          created_at?: string
+          id?: string
+          name: string
+        }
+        Update: {
+          color?: string
+          created_at?: string
+          id?: string
+          name?: string
+        }
+        Relationships: []
+      }
+      api_endpoints: {
+        Row: {
+          api_id: string
+          created_at: string
+          description: string
+          id: string
+          method: string
+          path: string
+        }
+        Insert: {
+          api_id: string
+          created_at?: string
+          description: string
+          id?: string
+          method: string
+          path: string
+        }
+        Update: {
+          api_id?: string
+          created_at?: string
+          description?: string
+          id?: string
+          method?: string
+          path?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "api_endpoints_api_id_fkey"
+            columns: ["api_id"]
+            isOneToOne: false
+            referencedRelation: "apis"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      api_stats: {
+        Row: {
+          api_id: string
+          id: string
+          last_week_calls: number
+          response_time: number
+          total_calls: number
+          updated_at: string
+          uptime: number
+        }
+        Insert: {
+          api_id: string
+          id?: string
+          last_week_calls?: number
+          response_time?: number
+          total_calls?: number
+          updated_at?: string
+          uptime?: number
+        }
+        Update: {
+          api_id?: string
+          id?: string
+          last_week_calls?: number
+          response_time?: number
+          total_calls?: number
+          updated_at?: string
+          uptime?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "api_stats_api_id_fkey"
+            columns: ["api_id"]
+            isOneToOne: false
+            referencedRelation: "apis"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      apis: {
+        Row: {
+          auth_description: string | null
+          auth_type: string
+          base_url: string
+          category_id: string
+          created_at: string
+          description: string
+          documentation_url: string | null
+          id: string
+          name: string
+          owner: string
+          tags: string[]
+          updated_at: string
+          version: string
+        }
+        Insert: {
+          auth_description?: string | null
+          auth_type?: string
+          base_url: string
+          category_id: string
+          created_at?: string
+          description: string
+          documentation_url?: string | null
+          id?: string
+          name: string
+          owner: string
+          tags?: string[]
+          updated_at?: string
+          version?: string
+        }
+        Update: {
+          auth_description?: string | null
+          auth_type?: string
+          base_url?: string
+          category_id?: string
+          created_at?: string
+          description?: string
+          documentation_url?: string | null
+          id?: string
+          name?: string
+          owner?: string
+          tags?: string[]
+          updated_at?: string
+          version?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "apis_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "api_categories"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never

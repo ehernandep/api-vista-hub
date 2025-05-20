@@ -1,6 +1,6 @@
+
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { apiCategories } from "@/data/mockData";
 import {
   Card,
   CardContent,
@@ -17,12 +17,6 @@ import {
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@/components/ui/tabs";
-import {
   Search,
   Database,
   ListFilter,
@@ -31,10 +25,11 @@ import {
   CheckSquare,
   Code,
   X,
+  Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { apis } from "@/data/mockData";
 import { Separator } from "@/components/ui/separator";
+import { fetchApis, fetchApiCategories, ApiCategory, Api } from "@/services/apiService";
 
 interface Filters {
   category: string;
@@ -51,10 +46,37 @@ const SearchApis = () => {
   });
   const [activeFilters, setActiveFilters] = useState<string[]>([]);
   const [displayMode, setDisplayMode] = useState<"grid" | "list">("grid");
-  const [filteredApis, setFilteredApis] = useState(apis);
+  const [apis, setApis] = useState<Api[]>([]);
+  const [filteredApis, setFilteredApis] = useState<Api[]>([]);
+  const [categories, setCategories] = useState<ApiCategory[]>([]);
+  const [loading, setLoading] = useState(true);
+  
+  // Fetch APIs and categories on mount
+  useEffect(() => {
+    const loadData = async () => {
+      setLoading(true);
+      try {
+        const [apisData, categoriesData] = await Promise.all([
+          fetchApis(),
+          fetchApiCategories(),
+        ]);
+        setApis(apisData);
+        setFilteredApis(apisData);
+        setCategories(categoriesData);
+      } catch (error) {
+        console.error("Error loading data:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    loadData();
+  }, []);
   
   // Aplicar filtros cuando cambian
   useEffect(() => {
+    if (apis.length === 0) return;
+    
     let results = [...apis];
     
     // Filtrado por búsqueda
@@ -70,12 +92,12 @@ const SearchApis = () => {
     
     // Filtrado por categoría
     if (filters.category !== "all") {
-      results = results.filter((api) => api.category.id === filters.category);
+      results = results.filter((api) => api.category_id === filters.category);
     }
     
     // Filtrado por tipo de autenticación
     if (filters.authType !== "all") {
-      results = results.filter((api) => api.auth.type === filters.authType);
+      results = results.filter((api) => api.auth_type === filters.authType);
     }
     
     // Ordenamiento
@@ -86,14 +108,14 @@ const SearchApis = () => {
       case "date":
         results.sort(
           (a, b) =>
-            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+            new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
         );
         break;
       case "popularity":
-        results.sort((a, b) => b.stats.totalCalls - a.stats.totalCalls);
+        results.sort((a, b) => (b.stats?.total_calls || 0) - (a.stats?.total_calls || 0));
         break;
       case "rating":
-        results.sort((a, b) => b.stats.uptime - a.stats.uptime);
+        results.sort((a, b) => (b.stats?.uptime || 0) - (a.stats?.uptime || 0));
         break;
     }
     
@@ -102,7 +124,7 @@ const SearchApis = () => {
     // Actualizar filtros activos para mostrarlos como chips
     const active: string[] = [];
     if (filters.category !== "all") {
-      const category = apiCategories.find((c) => c.id === filters.category);
+      const category = categories.find((c) => c.id === filters.category);
       if (category) active.push(`Categoría: ${category.name}`);
     }
     if (filters.authType !== "all") {
@@ -114,7 +136,7 @@ const SearchApis = () => {
       active.push(`Auth: ${authTypes[filters.authType]}`);
     }
     setActiveFilters(active);
-  }, [searchQuery, filters]);
+  }, [searchQuery, filters, apis, categories]);
 
   // Formatea el número de llamadas
   const formatCalls = (calls: number) => {
@@ -144,6 +166,17 @@ const SearchApis = () => {
       setFilters({ ...filters, authType: "all" });
     }
   };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-[60vh]">
+        <div className="text-center">
+          <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary mb-4" />
+          <p className="text-muted-foreground">Cargando APIs...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="animate-fade-in">
@@ -182,7 +215,7 @@ const SearchApis = () => {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Todas las categorías</SelectItem>
-                {apiCategories.map((category) => (
+                {categories.map((category) => (
                   <SelectItem key={category.id} value={category.id}>
                     {category.name}
                   </SelectItem>
@@ -322,12 +355,14 @@ const SearchApis = () => {
                   <CardTitle className="text-lg font-semibold">
                     {api.name}
                   </CardTitle>
-                  <Badge
-                    style={{ backgroundColor: api.category.color }}
-                    className="text-white"
-                  >
-                    {api.category.name}
-                  </Badge>
+                  {api.category && (
+                    <Badge
+                      style={{ backgroundColor: api.category.color }}
+                      className="text-white"
+                    >
+                      {api.category.name}
+                    </Badge>
+                  )}
                 </div>
               </CardHeader>
               <CardContent className="space-y-2">
@@ -346,11 +381,11 @@ const SearchApis = () => {
                 <div className="pt-2 flex items-center justify-between text-xs text-muted-foreground">
                   <div className="flex items-center gap-1">
                     <Database className="h-3 w-3" />
-                    <span>{formatCalls(api.stats.totalCalls)} llamadas</span>
+                    <span>{formatCalls(api.stats?.total_calls || 0)} llamadas</span>
                   </div>
                   <div>
                     <span className="font-medium text-green-600">
-                      {api.stats.uptime}% uptime
+                      {api.stats?.uptime || 99.9}% uptime
                     </span>
                   </div>
                 </div>
@@ -370,12 +405,14 @@ const SearchApis = () => {
                 <div className="flex-grow">
                   <div className="flex items-start gap-2 mb-2">
                     <h3 className="font-semibold text-lg">{api.name}</h3>
-                    <Badge
-                      style={{ backgroundColor: api.category.color }}
-                      className="text-white"
-                    >
-                      {api.category.name}
-                    </Badge>
+                    {api.category && (
+                      <Badge
+                        style={{ backgroundColor: api.category.color }}
+                        className="text-white"
+                      >
+                        {api.category.name}
+                      </Badge>
+                    )}
                   </div>
                   <p className="text-sm text-muted-foreground mb-2">
                     {api.description}
@@ -390,15 +427,15 @@ const SearchApis = () => {
                   <div className="flex items-center gap-3 text-xs text-muted-foreground">
                     <span className="flex items-center gap-1">
                       <Database className="h-3 w-3" />
-                      {formatCalls(api.stats.totalCalls)} llamadas
+                      {formatCalls(api.stats?.total_calls || 0)} llamadas
                     </span>
                     <Separator orientation="vertical" className="h-3" />
                     <span className="text-green-600">
-                      {api.stats.uptime}% uptime
+                      {api.stats?.uptime || 99.9}% uptime
                     </span>
                     <Separator orientation="vertical" className="h-3" />
                     <span>
-                      Auth: {api.auth.type === "none" ? "No requiere" : api.auth.type}
+                      Auth: {api.auth_type === "none" ? "No requiere" : api.auth_type}
                     </span>
                   </div>
                 </div>
